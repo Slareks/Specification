@@ -1,0 +1,22 @@
+# Где лежит конфиг и куда писать аудит
+sshd_config_file: /etc/ssh/sshd_config
+sshd_audit_log_path: /var/log/sshd_audit.jsonl
+
+# Режим: только проверка (false) или также приводить к нужным значениям (true)
+sshd_enforce: false
+
+# Ожидаемые значения параметров
+sshd_config_options:
+  PermitRootLogin: "no"
+  PasswordAuthentication: "no"
+  MaxAuthTries: "3"
+  ChallengeResponseAuthentication: "no"
+  X11Forwarding: "no"
+
+# Соответствие имен параметров формату вывода `sshd -T`
+sshd_options_map:
+  PermitRootLogin: permitrootlogin
+  PasswordAuthentication: passwordauthentication
+  MaxAuthTries: maxauthtries
+  ChallengeResponseAuthentication: challengeresponseauthentication
+  X11Forwarding: x11forwarding

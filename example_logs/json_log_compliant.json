@@ -1,0 +1,9 @@
+{
+    "message": {
+        "status": "compliant",
+        "PermitRootLogin": "yes",
+        "PasswordAuthentication": "yes",
+        "MaxAuthTries": "Обнаружено несоответствие заданным значениям",
+        "X11Forwarding": "yes"
+    }
+}

@@ -1,0 +1,63 @@
+---
+# ====== Проверка конфигурации ======
+- name: Get sshd config (sshd -T)
+  ansible.builtin.command: sshd -T
+  register: sshd_t_output
+  changed_when: false
+  failed_when: sshd_t_output.rc != 0
+  become: true
+
+- name: Build dict from sshd -T output
+  ansible.builtin.set_fact:
+    sshd_effective: "{{ sshd_effective | default({}) | combine({ (item.split()[0]): (item.split()[1]) }) }}"
+  loop: "{{ sshd_t_output.stdout_lines | select('match','^\\S+\\s+\\S+') | list }}"
+
+- name: Collect current values for monitored keys (original casing)
+  ansible.builtin.set_fact:
+    current_checked: "{{ current_checked | default({}) | combine({ item.key: (sshd_effective.get(item.value) | string) }) }}"
+  loop: "{{ sshd_options_map | dict2items }}"
+
+- name: Detect non-compliant items
+  ansible.builtin.set_fact:
+    non_compliant_items: >-
+      {{
+        (non_compliant_items | default({}))
+        | combine( { item.key: (current_checked[item.key] | string) } )
+      }}
+  loop: "{{ sshd_options_map | dict2items }}"
+  when: (current_checked[item.key] | string) != (sshd_config_options[item.key] | string)
+
+- name: Compliance status
+  ansible.builtin.set_fact:
+    compliance_status: "{{ 'compliant' if (non_compliant_items | default({}) | length == 0) else 'non-compliant' }}"
+
+- name: Build message payload
+  ansible.builtin.set_fact:
+    audit_message: >-
+      {% if compliance_status == 'compliant' -%}
+      {{ {'status': 'compliant'} }}
+      {%- else -%}
+      {{ {'status': 'non-compliant'} | combine(non_compliant_items) }}
+      {%- endif %}
+
+- name: Build full JSON log object
+  ansible.builtin.set_fact:
+    sshd_audit_log_obj: >-
+      {{
+        {
+          "timestamp": lookup('pipe','date -u +%Y-%m-%dT%H:%M:%SZ'),
+          "host": inventory_hostname,
+          "ansible_version": ansible_version.full,
+          "ansible_user": (ansible_user | default(ansible_user_id)),
+          "message": audit_message
+        }
+      }}
+
+- name: Append one-line JSON to audit log
+  ansible.builtin.lineinfile:
+    path: "{{ sshd_audit_log_path }}"
+    create: true
+    mode: "0644"
+    insertafter: EOF
+    line: "{{ sshd_audit_log_obj | to_json }}"
+  become: true

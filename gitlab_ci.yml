@@ -1,0 +1,43 @@
+stages:
+  - lint
+  - build
+  - test
+  - log_check
+
+variables:
+  IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+
+lint:
+  stage: lint
+  image: python:3.11
+  before_script:
+    - pip install --no-cache-dir ansible-lint yamllint
+  script:
+    - yamllint .
+    - ansible-lint .
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  script:
+    - docker build -t $IMAGE_NAME .
+    - docker push $IMAGE_NAME
+
+test:
+  stage: test
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker run --rm $IMAGE_NAME ansible-playbook -i inventory test.yml
+
+log_check:
+  stage: log_check
+  image: stedolan/jq:latest
+  script:
+    - test -f logs/output.json
+    - jq . logs/output.json > /dev/null
